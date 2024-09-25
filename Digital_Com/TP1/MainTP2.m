@@ -1,9 +1,9 @@
 clear all;close all;clc;format short g
 
 % Paramètres
-M = 256;                    % Taille de la constellation
+M = 4;                    % Taille de la constellation
 g0 = 1;                    % Gain de modulation
-num_bits = 1e6+8;             % Nombre de bits
+num_bits = 1e7+8;             % Nombre de bits
 bits_per_symbol = log2(M);  % Nombre de bits par symbole
 num_symbols = num_bits / bits_per_symbol;
 
@@ -11,7 +11,7 @@ num_symbols = num_bits / bits_per_symbol;
 [mPoints, mLabels] = generate_MQAM_constellation(M);
 
 % Initialiser les tableaux de résultats
-SNR_dB_range = 0:15;  % Intervalle de Eb/N0 en dB
+SNR_dB_range = 0:13;  % Intervalle de Eb/N0 en dB
 Pb_estimated = zeros(length(SNR_dB_range), 1);
 Ps_estimated = zeros(length(SNR_dB_range), 1);
 
@@ -34,7 +34,7 @@ for idx = 1:length(SNR_dB_range)
     [demodulated_bits, closest_points] = demodulate_MQAM_with_closest(received_symbols, mPoints, mLabels);
     
     % Calcul du nombre d'erreurs
-    some_threshold = 1e-20;
+    some_threshold = 1e-10;
     num_bit_errors = sum(bits ~= demodulated_bits);
     num_symbol_errors = sum(abs(symbols - closest_points) > some_threshold);
     
