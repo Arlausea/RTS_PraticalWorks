@@ -1,5 +1,7 @@
+clear all;close all;clc;format short g
+
 % Paramètres
-M = 4;                    % Taille de la constellation
+M = 256;                    % Taille de la constellation
 g0 = 1;                    % Gain de modulation
 num_bits = 1e5+8;             % Nombre de bits
 bits_per_symbol = log2(M);  % Nombre de bits par symbole
@@ -26,30 +28,30 @@ for idx = 1:length(SNR_dB_range)
     symbols = modulate_MQAM(bits, mPoints, mLabels, M, g0);
     
     % Ajouter du bruit AWGN
-    received_symbols = awgn(symbols, SNR, 'measured');
+    received_symbols = awgn(symbols, SNR_dB, 'measured');
     
     % Démodulation
     [demodulated_bits, closest_points] = demodulate_MQAM_with_closest(received_symbols, mPoints, mLabels);
     
     % Calcul du nombre d'erreurs
-    some_threshold = 1e-6;
+    some_threshold = 1e-3;
     num_bit_errors = sum(bits ~= demodulated_bits);
     num_symbol_errors = sum(abs(symbols - closest_points) > some_threshold);
     
     % Estimation des probabilités d'erreur
     Pb_estimated(idx) = num_bit_errors / num_bits;
     Ps_estimated(idx) = num_symbol_errors / num_symbols;
+    Ps_theoretical = 4*(1 - (1/sqrt(M))) * qfunc(sqrt(3*log2(M) / (M-1) * (10.^(SNR_dB_range / 10))));
+    Pb_theoretical = 4*(1 - (1/sqrt(M))) * qfunc(sqrt(3*log2(M) / (M-1) * (10.^(SNR_dB_range / 10))))/log2(M);
 end
-
-% Calcul de la courbe théorique pour Pb (UNE SEULE FOIS après la boucle)
-Pb_theoretical = 4*(1 - (1/sqrt(M))) * qfunc(sqrt(3*log2(M) / (M-1) * (10.^(SNR_dB_range / 10))));
 
 % Tracer les courbes estimées et théoriques
 figure;
 semilogy(SNR_dB_range, Pb_estimated, 'b-o', 'DisplayName', 'P_b (estimé)');
 hold on;
 semilogy(SNR_dB_range, Ps_estimated, 'r-o', 'DisplayName', 'P_s (estimé)');
-semilogy(SNR_dB_range, Pb_theoretical, 'k--', 'DisplayName', 'P_b (théorique)');
+semilogy(SNR_dB_range, Ps_theoretical, 'r--', 'DisplayName', 'P_s (théorique)');
+semilogy(SNR_dB_range, Pb_theoretical, 'b--', 'DisplayName', 'P_b (théorique)');
 
 % Ajustements de la figure
 xlabel('E_b/N_0 (dB)');
