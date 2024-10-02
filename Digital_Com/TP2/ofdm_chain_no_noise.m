@@ -18,7 +18,7 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
     bits = randi([0 1], num_bits, 1);
 
     % Modulate using custom M-QAM modulation (modulate_MQAM)
-    symbols = modulate_MQAM(bits, mPoints, mLabels, M, 1);
+    symbols = modulate_MQAM(bits, mPoints, mLabels, M, g0);
 
     % Serial to Parallel conversion
     symbols_parallel = serial_to_parallel(symbols, Ns);
@@ -59,7 +59,7 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
     received_serial = parallel_to_serial(demod_symbols);
 
     % Demodulate using custom M-QAM demodulation (demodulate_MQAM_with_closest)
-    [demodulated_bits, ~] = demodulate_MQAM_with_closest(received_serial, mPoints, mLabels);
+    [demodulated_bits, closest_points] = demodulate_MQAM_with_closest(received_serial, mPoints, mLabels);
 
     % Ensure the number of demodulated bits matches the original number of bits
     demodulated_bits = demodulated_bits(1:num_bits);  % Trim if necessary
@@ -68,8 +68,9 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
     num_bit_errors = sum(bits ~= demodulated_bits);
     BER = num_bit_errors / num_bits;
 
-    num_symbol_errors = sum(symbols ~= received_serial);
-    SER = num_symbol_errors / (K * Ns);
+    some_threshold = 1e-3;
+    num_symbol_errors = sum(abs(symbols - closest_points) > some_threshold);
+    SER = num_symbol_errors / ((K * Ns)*log2(M));
     % Print original transmitted symbols
     disp('Original Symbols (First 10):');
     disp(symbols_parallel(:, 1));
