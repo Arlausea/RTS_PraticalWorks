@@ -1,1 +1,1 @@
-Repository compiling all Practical Works made during RTS specialization at ENSEA in 2024.
+This repository compiles the summary of our work carried out in RTS courses at ENSEA.
