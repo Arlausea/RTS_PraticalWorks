@@ -4,7 +4,7 @@ g0 = 1;  % Gain for modulation
 Nc = 128;  % Number of subcarriers
 Npr = 16;  % Cyclic prefix length
 K = 1000;  % Number of OFDM blocks
-h =  [1];  % Channel
+h =  [3];  % Channel
 
 % Generate the M-QAM constellation and Gray labels
 [mPoints, mLabels] = generate_MQAM_constellation(M);

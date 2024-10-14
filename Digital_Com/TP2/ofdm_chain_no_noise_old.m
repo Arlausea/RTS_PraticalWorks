@@ -13,16 +13,12 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
     Ns = (Nc / 2) - 1;  % Number of QAM symbols per block
     bits_per_symbol = log2(M);  % Number of bits per QAM symbol
 
-    % Adjust the number of bits to ensure the total number of elements is divisible by Nc
+    % Generate random bits
     num_bits = K * Ns * bits_per_symbol;
-    adjusted_num_bits = ceil(num_bits / Nc) * Nc;  % Adjust to the nearest multiple of Nc
-    bits = randi([0 1], adjusted_num_bits, 1);
+    bits = randi([0 1], num_bits, 1);
 
     % Modulate using custom M-QAM modulation (modulate_MQAM)
-    symbols = modulate_MQAM(bits, mPoints, mLabels, M, 1);
-
-    % Trim symbols to original bit length
-    symbols = symbols(1:num_bits / bits_per_symbol);
+    symbols = modulate_MQAM(bits, mPoints, mLabels, M, g0);
 
     % Serial to Parallel conversion
     symbols_parallel = serial_to_parallel(symbols, Ns);
@@ -43,18 +39,12 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
     % Add Cyclic Prefix
     time_domain_with_cp = add_cyclic_prefix(time_domain_data, Npr);
 
-    % Parallel to Serial conversion
-    Before_the_demon = parallel_to_serial(time_domain_with_cp);
-
     % Channel Filtering (no noise)
     H = fft(h, Nc);
-    received_with_cp = conv2(Before_the_demon, h(:), 'same');
-
-    % Serial to Parallel conversion
-    After_the_demon = serial_to_parallel(received_with_cp, Ns);
+    received_with_cp = conv2(time_domain_with_cp, h(:), 'same');
 
     % Remove Cyclic Prefix
-    received_no_cp = remove_cyclic_prefix(After_the_demon, Npr);
+    received_no_cp = remove_cyclic_prefix(received_with_cp, Npr);
 
     % Apply FFT
     received_freq_domain = apply_fft(received_no_cp);
@@ -80,11 +70,11 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
 
     some_threshold = 1e-3;
     num_symbol_errors = sum(abs(symbols - closest_points) > some_threshold);
-    SER = num_symbol_errors / ((K * Ns) * log2(M));
-    
+    SER = num_symbol_errors / ((K * Ns)*log2(M));
     % Print original transmitted symbols
     disp('Original Symbols (First 10):');
     disp(symbols_parallel(:, 1));
     disp('Equalized Symbols (First 10):');
     disp(demod_symbols(1:10, 1));
 end
+

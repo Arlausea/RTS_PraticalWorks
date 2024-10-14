@@ -1,4 +1,3 @@
-% Main OFDM simulation with Hermitian symmetry, no noise (Checkpoint 1)
 function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0)
     % Simulates OFDM communication chain without additive noise.
     % Nc: number of subcarriers
@@ -20,21 +19,29 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
     % Modulate using custom M-QAM modulation (modulate_MQAM)
     symbols = modulate_MQAM(bits, mPoints, mLabels, M, g0);
 
-    % Serial to Parallel conversion
-    symbols_parallel = serial_to_parallel(symbols, Ns);
-
-    % Apply Hermitian Symmetry
-    hermitian_symbols = zeros(Nc, K);
+    % Apply Hermitian Symmetry directly on the serial symbols
+    hermitian_symbols_serial = zeros(Nc * K, 1);
+    symbol_idx = 1;
     for k = 1:K
-        hermitian_symbols(:, k) = apply_hermitian_symmetry(symbols_parallel(:, k), Ns);
+        % Extract Ns symbols for the current OFDM block
+        current_block_symbols = symbols(symbol_idx:symbol_idx+Ns-1);
+        
+        % Apply Hermitian symmetry to the current block
+        hermitian_symbols_serial((k-1)*Nc+1:k*Nc) = apply_hermitian_symmetry(current_block_symbols, Ns);
+        
+        % Update symbol index
+        symbol_idx = symbol_idx + Ns;
     end
-
-    % Print first 10 values of the first OFDM block after Hermitian symmetry
+    
+    % Print first 10 values after Hermitian symmetry for the first OFDM block
     disp('Hermitian Symmetric Vector (First 10 values of first OFDM block):');
-    disp(hermitian_symbols(1:10, 1));  % Display first 10 values of the first block
+    disp(hermitian_symbols_serial(1:10));
+
+    % Reshape the hermitian_symbols_serial into Nc x K matrix for parallel processing
+    hermitian_symbols_parallel = reshape(hermitian_symbols_serial, Nc, K);
 
     % Apply IFFT
-    time_domain_data = apply_ifft(hermitian_symbols);
+    time_domain_data = apply_ifft(hermitian_symbols_parallel);
 
     % Add Cyclic Prefix
     time_domain_with_cp = add_cyclic_prefix(time_domain_data, Npr);
@@ -42,24 +49,56 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
     % Channel Filtering (no noise)
     H = fft(h, Nc);
     received_with_cp = conv2(time_domain_with_cp, h(:), 'same');
+    
+
+    % conv() Nc +  Npr + L -1
+    % received_with_cp = received_with_cp(1:Nc+Npr,1)
 
     % Remove Cyclic Prefix
     received_no_cp = remove_cyclic_prefix(received_with_cp, Npr);
 
     % Apply FFT
     received_freq_domain = apply_fft(received_no_cp);
+    disp(received_freq_domain(:,1));
+    %  Convert received frequency domain data from parallel to serial
+    received_serial = parallel_to_serial(received_freq_domain);  % Convert received data to serial
 
-    % Equalization (Zero Forcing)
-    equalized_data = received_freq_domain ./ H.';
+    % Check the size of received_serial
+    expected_size = Nc * K;  % Nc subcarriers for K blocks
+    if numel(received_serial) ~= expected_size
+        error('The number of elements in received_serial (%d) does not correspond to the product of Nc and K (%d)', ...
+            numel(received_serial), expected_size);
+    end
 
-    % Remove Hermitian symmetry and demodulate
-    demod_symbols = equalized_data(2:Ns+1, :);
+    % Apply Zero Forcing equalisation directly to serial data
+    H_serial = repmat(H.', K, 1);  % Extend the channel response to match all serial data
+    equalized_serial = received_serial ./ H_serial;  % Zero Forcing equalization
 
-    % Parallel to Serial conversion
-    received_serial = parallel_to_serial(demod_symbols);
+    % Suppress Hermitian symmetry directly on serial data
+    % Nc_half corresponds to the index of (Ns + 1) after symmetries have been removed
+    Nc_half = (Nc / 2);  % Nc/2 corresponds to the Hermitian part of the data
+    num_elements_per_block = Nc;  % Number of elements per block
+
+    %  Delete elements corresponding to Hermitian symmetry
+    equalized_serial_no_hermitian = [];  % Initialise an empty vector to store non-Hermitian data
+    for block_idx = 1:K
+        % Extract a block from the signal
+        start_idx = (block_idx-1) * num_elements_per_block + 1;
+        end_idx = start_idx + num_elements_per_block - 1;
+        block = equalized_serial(start_idx:end_idx);
+
+        % Remove the first subcarrier (DC) and the symmetrical parts
+        block_no_hermitian = block(2:Nc_half);  % Keep only the non-symmetrical part
+
+        % Add this processed block to the final signal without symmetry
+        equalized_serial_no_hermitian = [equalized_serial_no_hermitian; block_no_hermitian];
+    end
+
+    % Now the data is equalized and the Hermitian symmetry is removed, all in series
+
 
     % Demodulate using custom M-QAM demodulation (demodulate_MQAM_with_closest)
-    [demodulated_bits, closest_points] = demodulate_MQAM_with_closest(received_serial, mPoints, mLabels);
+    [demodulated_bits, closest_points] = demodulate_MQAM_with_closest(equalized_serial_no_hermitian, mPoints, mLabels);
 
     % Ensure the number of demodulated bits matches the original number of bits
     demodulated_bits = demodulated_bits(1:num_bits);  % Trim if necessary
@@ -70,11 +109,6 @@ function [BER, SER] = ofdm_chain_no_noise(Nc, h, Npr, M, K, mPoints, mLabels, g0
 
     some_threshold = 1e-3;
     num_symbol_errors = sum(abs(symbols - closest_points) > some_threshold);
-    SER = num_symbol_errors / ((K * Ns)*log2(M));
-    % Print original transmitted symbols
-    disp('Original Symbols (First 10):');
-    disp(symbols_parallel(:, 1));
-    disp('Equalized Symbols (First 10):');
-    disp(demod_symbols(1:10, 1));
+    SER = num_symbol_errors / ((K * Ns) * log2(M));
 end
 
