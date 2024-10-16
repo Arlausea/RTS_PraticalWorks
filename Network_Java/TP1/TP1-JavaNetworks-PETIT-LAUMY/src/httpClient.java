@@ -45,8 +45,6 @@ public class httpClient {
             System.out.println("Socket is opened at host "+host+" with port "+port+".");
             Thread.sleep(2);
 
-
-
             PrintWriter to = new PrintWriter(socket.getOutputStream(),true);
             BufferedReader buffer = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
